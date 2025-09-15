@@ -103,7 +103,8 @@ pub const Offsets = struct {
         var list: @This() = .{};
         var lines = std.mem.tokenizeScalar(u8, contents, '\n');
 
-        while (lines.next()) |line| {
+        while (lines.next()) |l| {
+            var line = l;
             if (line[line.len - 1] == '\r') line.len -= 1;
 
             var pair = std.mem.tokenizeScalar(u8, line, ' ');
