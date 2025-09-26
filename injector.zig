@@ -46,6 +46,18 @@ pub fn main() !void {
         return;
     };
 
+    var debug_allocator = std.heap.DebugAllocator(.{}){};
+    defer _ = debug_allocator.deinit();
+    const gpa = debug_allocator.allocator();
+    var cmd_line = try gpa.alloc(u16, game_executable.len);
+    std.mem.copyForwards(u16, cmd_line, game_executable);
+
+    var args = try std.process.argsWithAllocator(gpa);
+    _ = args.skip();
+    while (args.next()) |arg| {
+        cmd_line = std.mem.concat(gpa, u16, &.{ cmd_line, unicode.utf8ToUtf16LeStringLiteral(" "), try unicode.utf8ToUtf16LeAlloc(gpa, arg) }) catch @panic("Out of Memory");
+    }
+
     var proc_info: windows.PROCESS_INFORMATION = undefined;
     var startup_info: windows.STARTUPINFOW = .{
         .cb = 0,
@@ -70,7 +82,7 @@ pub fn main() !void {
 
     try windows.CreateProcessW(
         game_executable,
-        null,
+        @ptrCast(cmd_line.ptr),
         null,
         null,
         0,
