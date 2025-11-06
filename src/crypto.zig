@@ -1,3 +1,4 @@
+const std = @import("std");
 const root = @import("root");
 const zz = @import("zigzag");
 const util = @import("util.zig");
@@ -21,8 +22,21 @@ pub fn init(allocator: zz.ChunkAllocator) void {
 
     initializeRsaCryptoServiceProvider();
 
+    _ = root.intercept(allocator, base + offsets.unwrapOffset(.SDK_RSA_ENCRYPT), SdkRsaEncryptHook);
     _ = root.intercept(allocator, base + offsets.unwrapOffset(.NETWORK_STATE_CHANGE), NetworkStateHook);
 }
+
+const SdkRsaEncryptHook = struct {
+    pub var originalFn: *const fn (usize, usize) callconv(.c) usize = undefined;
+
+    pub fn callback(_: usize, a2: usize) callconv(.c) usize {
+        std.log.debug("Replacing SDK RSA key", .{});
+        return @This().originalFn(
+            util.ptrToStringAnsi(sdk_public_key),
+            a2,
+        );
+    }
+};
 
 const NetworkStateHook = struct {
     pub var originalFn: *const fn (usize, usize) callconv(.c) usize = undefined;
