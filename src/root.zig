@@ -137,17 +137,41 @@ pub export fn DllMain(_: windows.HINSTANCE, reason: windows.DWORD, _: windows.LP
     return 1;
 }
 
+fn runningOutdatedWine() !bool {
+    const pre_syscall_reordering_version: [2]usize = .{ 10, 9 }; // wine 10.10+ preserves proper syscall ordering
+
+    const ntdll = windows.kernel32.GetModuleHandleW(ntdll_name).?;
+    const wine_get_version_ptr = windows.kernel32.GetProcAddress(ntdll, "wine_get_version") orelse return false;
+    const wine_get_version: *const fn () [*:0]const u8 = @ptrCast(wine_get_version_ptr);
+
+    const version_str = std.mem.span(wine_get_version());
+    var semver = std.mem.tokenizeScalar(u8, version_str, '.');
+
+    const major_version = std.fmt.parseInt(
+        usize,
+        semver.next() orelse return error.InvalidSemver,
+        10,
+    ) catch return error.InvalidSemver;
+
+    if (major_version > pre_syscall_reordering_version[0]) return false;
+
+    const minor_version = std.fmt.parseInt(
+        usize,
+        semver.next() orelse return error.InvalidSemver,
+        10,
+    ) catch return error.InvalidSemver;
+
+    return minor_version <= pre_syscall_reordering_version[1];
+}
+
 fn disableMemoryProtection() !void {
     const ntdll = windows.kernel32.GetModuleHandleW(ntdll_name).?;
     const proc_addr = windows.kernel32.GetProcAddress(ntdll, "NtProtectVirtualMemory").?;
 
-    const nt_func = nt_func: {
-        if (windows.kernel32.GetProcAddress(ntdll, "wine_get_version") != null) {
-            break :nt_func windows.kernel32.GetProcAddress(ntdll, "NtPulseEvent").?;
-        } else {
-            break :nt_func windows.kernel32.GetProcAddress(ntdll, "NtQuerySection").?;
-        }
-    };
+    const nt_func = if (runningOutdatedWine() catch false)
+        windows.kernel32.GetProcAddress(ntdll, "NtPulseEvent").?
+    else
+        windows.kernel32.GetProcAddress(ntdll, "NtQuerySection").?;
 
     var protection: windows.DWORD = windows.PAGE_EXECUTE_READWRITE;
     try windows.VirtualProtect(proc_addr, 1, protection, &protection);
