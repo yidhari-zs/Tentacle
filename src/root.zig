@@ -52,7 +52,7 @@ fn onAttach() void {
     ) catch {};
 
     std.log.debug("Successfully injected. Waiting for the game startup.", .{});
-    std.log.debug("To work with Yidhari-ZS: https://git.xeondev.com/yidhari-zs/yidhari-zs", .{});
+    std.log.debug("To work with Yoshunko: https://git.xeondev.com/yoshunko/yoshunko", .{});
 
     base = while (true) {
         if (windows.kernel32.GetModuleHandleW(game_assembly_name)) |addr| break @intFromPtr(addr);
